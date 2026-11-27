@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#167d9a">
+<title>الاختبار الإلكتروني</title>
+<style>
+*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;background:#edf3f5;margin:0;padding:16px;color:#172a30}
+main{max-width:760px;margin:20px auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 18px #0001}
+h1{color:#145b70;font-size:22px;margin:0 0 8px}.muted{color:#63777d;font-size:13px;line-height:1.8}
+label{display:block;font-weight:bold;margin:14px 0 6px}input,textarea{width:100%;padding:12px;border:1px solid #b9cbd0;border-radius:9px;font:15px Tahoma}
+.question{border:1px solid #d8e4e7;border-radius:12px;padding:14px;margin:14px 0}.question h3{font-size:16px;margin:0 0 8px}.marks{color:#8b2831;font-size:12px}
+button{border:0;border-radius:9px;background:#167d9a;color:white;padding:12px 18px;font: bold 14px Tahoma;cursor:pointer}
+button:disabled{opacity:.5}.status{margin:12px 0;padding:10px;border-radius:8px;background:#eef8fa;white-space:pre-wrap}
+#timer{font-weight:bold;color:#a12a2a} [hidden]{display:none!important}
+</style></head>
+<body><main>
+<h1 id="title">الاختبار الإلكتروني</h1><p id="meta" class="muted">جارٍ تحميل الاختبار...</p>
+<div id="status" class="status">يرجى الانتظار...</div>
+<section id="entry" hidden>
+<label for="studentName">اسم الطالب</label><input id="studentName" maxlength="160" required>
+<label for="studentRef">رقم الطالب / الفصل (اختياري)</label><input id="studentRef" maxlength="120">
+<p id="durationNote" class="muted"></p><button id="begin">بدء الاختبار</button>
+</section>
+<section id="exam" hidden>
+<p id="timer"></p><div id="questions"></div>
+<button id="submit">إرسال الإجابات</button>
+</section>
+</main>
+<script>
+const token = {{ token|tojson }};
+const statusBox=document.getElementById('status');
+let attemptToken=null, deadline=null, timerHandle=null;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(path,opts={}){const r=await fetch(path,{headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'تعذر الاتصال بالخادم');return d}
+function showQuestions(items){const host=document.getElementById('questions');host.innerHTML='';items.forEach((q,i)=>{const card=document.createElement('div');card.className='question';const title=q.text||q.title||('السؤال '+(i+1));const lines=Array.isArray(q.lines)?q.lines:[];card.innerHTML='<h3>'+(i+1)+'. '+esc(title)+'</h3><div class="marks">'+(q.marks?'الدرجة: '+esc(q.marks):'')+'</div>'+lines.map(x=>'<p class="muted">'+esc(x)+'</p>').join('')+'<label for="answer_'+i+'">الإجابة</label><textarea id="answer_'+i+'" rows="3" data-qid="'+esc(q.id||('q'+(i+1)))+'"></textarea>';host.appendChild(card)})}
+function startTimer(minutes){if(!minutes)return;deadline=Date.now()+minutes*60000;const el=document.getElementById('timer');const tick=()=>{const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));el.textContent='الوقت المتبقي: '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0');if(left<=0){clearInterval(timerHandle);document.getElementById('submit').click()}};tick();timerHandle=setInterval(tick,1000)}
+(async()=>{try{const d=await api('/api/v1/student/'+encodeURIComponent(token));document.getElementById('title').textContent=d.title;document.getElementById('meta').textContent=[d.subject,d.grade].filter(Boolean).join(' • ')||'اختبار إلكتروني';document.getElementById('durationNote').textContent=d.duration_minutes?'المدة: '+d.duration_minutes+' دقيقة من وقت بدء الطالب.':'لا توجد مدة محددة.';window.examDuration=d.duration_minutes;window.examQuestions=d.questions;statusBox.textContent='أدخل اسمك ثم اضغط بدء الاختبار.';document.getElementById('entry').hidden=false}catch(e){statusBox.textContent=e.message}})();
+document.getElementById('begin').onclick=async()=>{const name=document.getElementById('studentName').value.trim();if(!name){alert('اكتب اسم الطالب أولاً.');return}try{const d=await api('/api/v1/student/'+encodeURIComponent(token)+'/start',{method:'POST',body:'{}'});attemptToken=d.attempt_token;document.getElementById('entry').hidden=true;document.getElementById('exam').hidden=false;statusBox.textContent='بدأ الاختبار. أرسل إجاباتك قبل انتهاء الوقت.';showQuestions(window.examQuestions||[]);startTimer(d.duration_minutes)}catch(e){statusBox.textContent=e.message}};
+document.getElementById('submit').onclick=async()=>{if(!attemptToken)return;const answers={};document.querySelectorAll('#questions textarea').forEach(el=>answers[el.dataset.qid]=el.value.trim());const button=document.getElementById('submit');button.disabled=true;try{const d=await api('/api/v1/student/'+encodeURIComponent(token)+'/submit',{method:'POST',body:JSON.stringify({attempt_token:attemptToken,student_name:document.getElementById('studentName').value.trim(),student_ref:document.getElementById('studentRef').value.trim(),answers})});clearInterval(timerHandle);document.getElementById('exam').hidden=true;statusBox.textContent=d.message||'تم استلام إجاباتك.'}catch(e){statusBox.textContent=e.message;button.disabled=false}};
+</script></body></html>
