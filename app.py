@@ -589,7 +589,7 @@ def student_submit(token):
     )
 
     db.session.add(submission)
-
+    db.session.flush()
     attempt.submitted = True
     attempt.submitted_at = now_utc()
 
