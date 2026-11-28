@@ -36,6 +36,86 @@ async function api(path,opts={}){const r=await fetch(path,{headers:{'Content-Typ
 function showQuestions(items){const host=document.getElementById('questions');host.innerHTML='';items.forEach((q,i)=>{const card=document.createElement('div');card.className='question';const title=q.text||q.title||('السؤال '+(i+1));const lines=Array.isArray(q.lines)?q.lines:[];card.innerHTML='<h3>'+(i+1)+'. '+esc(title)+'</h3><div class="marks">'+(q.marks?'الدرجة: '+esc(q.marks):'')+'</div>'+lines.map(x=>'<p class="muted">'+esc(x)+'</p>').join('')+'<label for="answer_'+i+'">الإجابة</label><textarea id="answer_'+i+'" rows="3" data-qid="'+esc(q.id||('q'+(i+1)))+'"></textarea>';host.appendChild(card)})}
 function startTimer(minutes){if(!minutes)return;deadline=Date.now()+minutes*60000;const el=document.getElementById('timer');const tick=()=>{const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));el.textContent='الوقت المتبقي: '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0');if(left<=0){clearInterval(timerHandle);document.getElementById('submit').click()}};tick();timerHandle=setInterval(tick,1000)}
 (async()=>{try{const d=await api('/api/v1/student/'+encodeURIComponent(token));document.getElementById('title').textContent=d.title;document.getElementById('meta').textContent=[d.subject,d.grade].filter(Boolean).join(' • ')||'اختبار إلكتروني';document.getElementById('durationNote').textContent=d.duration_minutes?'المدة: '+d.duration_minutes+' دقيقة من وقت بدء الطالب.':'لا توجد مدة محددة.';window.examDuration=d.duration_minutes;window.examQuestions=d.questions;statusBox.textContent='أدخل اسمك ثم اضغط بدء الاختبار.';document.getElementById('entry').hidden=false}catch(e){statusBox.textContent=e.message}})();
-document.getElementById('begin').onclick=async()=>{const name=document.getElementById('studentName').value.trim();if(!name){alert('اكتب اسم الطالب أولاً.');return}try{const d=await api('/api/v1/student/'+encodeURIComponent(token)+'/start',{method:'POST',body:'{}'});attemptToken=d.attempt_token;document.getElementById('entry').hidden=true;document.getElementById('exam').hidden=false;statusBox.textContent='بدأ الاختبار. أرسل إجاباتك قبل انتهاء الوقت.';showQuestions(window.examQuestions||[]);startTimer(d.duration_minutes)}catch(e){statusBox.textContent=e.message}};
-document.getElementById('submit').onclick=async()=>{if(!attemptToken)return;const answers={};document.querySelectorAll('#questions textarea').forEach(el=>answers[el.dataset.qid]=el.value.trim());const button=document.getElementById('submit');button.disabled=true;try{const d=await api('/api/v1/student/'+encodeURIComponent(token)+'/submit',{method:'POST',body:JSON.stringify({attempt_token:attemptToken,student_name:document.getElementById('studentName').value.trim(),student_ref:document.getElementById('studentRef').value.trim(),answers})});clearInterval(timerHandle);document.getElementById('exam').hidden=true;statusBox.textContent=d.message||'تم استلام إجاباتك.'}catch(e){statusBox.textContent=e.message;button.disabled=false}};
-</script></body></html>
+
+document.getElementById('begin').onclick=async()=>{
+    const name=document.getElementById('studentName').value.trim();
+    const studentRef=document.getElementById('studentRef').value.trim();
+
+    if(!name){
+        alert('اكتب اسم الطالب أولاً.');
+        return;
+    }
+
+    const button=document.getElementById('begin');
+    button.disabled=true;
+
+    try{
+        const d=await api(
+            '/api/v1/student/'+encodeURIComponent(token)+'/start',
+            {
+                method:'POST',
+                body:JSON.stringify({
+                    student_name:name,
+                    student_ref:studentRef
+                })
+            }
+        );
+
+        attemptToken=d.attempt_token;
+
+        document.getElementById('entry').hidden=true;
+        document.getElementById('exam').hidden=false;
+
+        statusBox.textContent='بدأ الاختبار. أرسل إجاباتك قبل انتهاء الوقت.';
+
+        showQuestions(window.examQuestions||[]);
+        startTimer(d.duration_minutes);
+
+    }catch(e){
+        statusBox.textContent=e.message;
+        button.disabled=false;
+    }
+};
+
+document.getElementById('submit').onclick=async()=>{
+    if(!attemptToken){
+        statusBox.textContent='لم تبدأ محاولة الاختبار بعد.';
+        return;
+    }
+
+    const answers={};
+
+    document.querySelectorAll('#questions textarea').forEach(el=>{
+        answers[el.dataset.qid]=el.value.trim();
+    });
+
+    const button=document.getElementById('submit');
+    button.disabled=true;
+
+    try{
+        const d=await api(
+            '/api/v1/student/'+encodeURIComponent(token)+'/submit',
+            {
+                method:'POST',
+                body:JSON.stringify({
+                    attempt_token:attemptToken,
+                    student_name:document.getElementById('studentName').value.trim(),
+                    student_ref:document.getElementById('studentRef').value.trim(),
+                    answers:answers
+                })
+            }
+        );
+
+        clearInterval(timerHandle);
+
+        document.getElementById('exam').hidden=true;
+        statusBox.textContent=d.message||'تم استلام إجاباتك بنجاح.';
+
+    }catch(e){
+        statusBox.textContent=e.message;
+        button.disabled=false;
+    }
+};
+</script>
+</body>
+</html>
