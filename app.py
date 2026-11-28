@@ -604,7 +604,7 @@ def student_submit(token):
                 total_marks=total,
                 grading_type="electronic"
             )
-            db.session.flush()
+           
             db.session.add(grade)
 
     db.session.commit()
