@@ -50,9 +50,16 @@ document.getElementById('begin').onclick=async()=>{
     button.disabled=true;
 
     try{
-        const d=await api(
-            '/api/v1/student/'+encodeURIComponent(token)+'/start',
-            {
+    const d=await api(
+    '/api/v1/student/'+encodeURIComponent(token)+'/start',
+    {
+        method:'POST',
+        body:JSON.stringify({
+            student_name:name,
+            student_ref:document.getElementById('studentRef').value.trim()
+        })
+    }
+);
                 method:'POST',
                 body:JSON.stringify({
                     student_name:name,
